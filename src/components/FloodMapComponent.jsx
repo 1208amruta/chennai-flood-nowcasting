@@ -1,10 +1,14 @@
+
 import {
   MapContainer,
   TileLayer,
   Marker,
   Popup,
   Circle,
+  CircleMarker,
+  Polygon,
 } from "react-leaflet";
+
 import {
   LineChart,
   Line,
@@ -15,11 +19,33 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-import "leaflet/dist/leaflet.css";
-import L from "leaflet";
-import { calculateFloodRisk } from "../utils/floodRisk";
+import {
+  CloudRain,
+  Waves,
+  AlertTriangle,
+  Activity,
+  RotateCcw,
+} from "lucide-react";
 
-// Fix Leaflet marker icons
+import "leaflet/dist/leaflet.css";
+
+import L from "leaflet";
+
+import {
+  velacheryPosition,
+  velacheryBoundary,
+  rainfallPoints,
+  getRiskColor,
+} from "../utils/floodData";
+
+import { useLanguage } from "../i18n/LanguageContext";
+import { useSimulation } from "../context/SimulationContext";
+
+
+// =========================================================
+// LEAFLET ICON
+// =========================================================
+
 delete L.Icon.Default.prototype._getIconUrl;
 
 L.Icon.Default.mergeOptions({
@@ -33,537 +59,1078 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
 });
 
-// Rainfall marker
-const rainfallIcon = L.divIcon({
-  className: "rainfall-marker",
-  html: "🌧️",
-  iconSize: [32, 32],
-  iconAnchor: [16, 16],
-});
 
-// Drainage marker
-const drainageIcon = L.divIcon({
-  className: "drainage-marker",
-  html: "🚰",
-  iconSize: [32, 32],
-  iconAnchor: [16, 16],
-});
+// =========================================================
+// MAIN COMPONENT
+// =========================================================
 
 function FloodMapComponent() {
-  const chennaiPosition = [13.0827, 80.2707];
 
-  // DEMO DATA — will be replaced with verified Chennai data later
-  const rainfallPoints = [
-    {
-      id: "RF-01",
-      name: "North Chennai Monitoring Point",
-      position: [13.1067, 80.2871],
-      rainfall: 52,
-    },
-    {
-      id: "RF-02",
-      name: "Central Chennai Monitoring Point",
-      position: [13.0569, 80.2425],
-      rainfall: 41,
-    },
-    {
-      id: "RF-03",
-      name: "South Chennai Monitoring Point",
-      position: [12.9846, 80.2209],
-      rainfall: 63,
-    },
-  ];
+  const { t, tRisk, tPipe } = useLanguage();
 
-  const drainagePoints = [
-  {
-    id: "DR-01",
-    name: "Drainage Point North",
-    position: [13.1158, 80.2864],
-    utilization: 68,
-    rainfall: 52,
-    capacity: 100,
-  },
-   {
-  id: "DR-02",
-  name: "Drainage Point Central",
-  position: [13.0732, 80.2609],
-  utilization: 82,
-  rainfall: 41,
-  capacity: 100,
-},
-    {
-  id: "DR-03",
-  name: "Drainage Point South",
-  position: [12.9965, 80.2181],
-  utilization: 91,
-  rainfall: 63,
-  capacity: 100,
-},
-  ];
-  const riskResults = drainagePoints.map((point) =>
-  calculateFloodRisk(
-    point.rainfall,
-    point.utilization
-  )
-);
+  // Rainfall + all derived values come from the shared
+  // simulation state, so every page shows the same numbers.
+  const {
+    rainfall,
+    setRainfall,
+    resetRainfall,
+    processedPoints,
+    riskCounts,
+    maximumUtilization,
+    overallRisk,
+    topRiskLocations,
+    nowcast,
+  } = useSimulation();
 
-const riskCounts = {
-  LOW: riskResults.filter((r) => r.level === "LOW").length,
-  MODERATE: riskResults.filter((r) => r.level === "MODERATE").length,
-  HIGH: riskResults.filter((r) => r.level === "HIGH").length,
-  CRITICAL: riskResults.filter((r) => r.level === "CRITICAL").length,
-};
+  const nowcastData = nowcast;
 
-const averageRainfall =
-  drainagePoints.reduce(
-    (total, point) => total + point.rainfall,
-    0
-  ) / drainagePoints.length;
+  const nowcastResults = nowcast.map((item) => item.risk);
 
-const highestDrainageUtilization = Math.max(
-  ...drainagePoints.map((point) => point.utilization)
-);
-
-const overallRisk =
-  riskCounts.CRITICAL > 0
-    ? "CRITICAL"
-    : riskCounts.HIGH > 0
-    ? "HIGH"
-    : riskCounts.MODERATE > 0
-    ? "MODERATE"
-    : "LOW";
-    const nowcastData = [
-  {
-    time: "Now",
-    rainfall: averageRainfall,
-    drainage: highestDrainageUtilization,
-  },
-  {
-    time: "+1 Hour",
-    rainfall: averageRainfall * 1.1,
-    drainage: Math.min(highestDrainageUtilization + 3, 100),
-  },
-  {
-    time: "+2 Hours",
-    rainfall: averageRainfall * 1.2,
-    drainage: Math.min(highestDrainageUtilization + 6, 100),
-  },
-  {
-    time: "+3 Hours",
-    rainfall: averageRainfall * 1.3,
-    drainage: Math.min(highestDrainageUtilization + 9, 100),
-  },
-];
-
-const nowcastResults = nowcastData.map((forecast) =>
-  calculateFloodRisk(
-    forecast.rainfall,
-    forecast.drainage
-  )
-);
-const getRiskColor = (riskLevel) => {
-  if (riskLevel === "CRITICAL") return "#dc2626";
-  if (riskLevel === "HIGH") return "#f97316";
-  if (riskLevel === "MODERATE") return "#eab308";
-  return "#22c55e";
-};
-  
-    
-return (
-  <div className="map-wrapper">
-
-    
-<div className="risk-summary">
-      <h2>Chennai Flood Monitoring</h2>
-
-      <div className="risk-grid">
-
-        <div className="risk-card">
-          <span>🟢 Low</span>
-          <strong>{riskCounts.LOW}</strong>
-        </div>
-
-        <div className="risk-card">
-          <span>🟡 Moderate</span>
-          <strong>{riskCounts.MODERATE}</strong>
-        </div>
-
-        <div className="risk-card">
-          <span>🟠 High</span>
-          <strong>{riskCounts.HIGH}</strong>
-        </div>
-
-        <div className="risk-card">
-          <span>🔴 Critical</span>
-          <strong>{riskCounts.CRITICAL}</strong>
-        </div>
-
-      </div>
-
-      <div className="monitoring-stats">
-
-        <div>
-          <span>Average Rainfall</span>
-          <strong>
-            {averageRainfall.toFixed(1)} mm/hr
-          </strong>
-        </div>
-
-        <div>
-          <span>Highest Drainage Stress</span>
-          <strong>
-            {highestDrainageUtilization}%
-          </strong>
-        </div>
-
-        <div>
-          <span>Overall Status</span>
-          <strong>
-            ⚠️ {overallRisk}
-          </strong>
-        </div>
-
-      </div>
-
-      <div className="demo-warning">
-        DEMO DATA — Not live emergency information
-      </div>
-      <div className="nowcast-panel">
-
-  <h3>0–3 Hour Flood Nowcast</h3>
-
-  <div className="nowcast-grid">
-
-    {nowcastResults.map((result, index) => (
-
-      <div
-        className={`nowcast-card ${result.level.toLowerCase()}`}
-        key={result.time}
-      >
-
-        <span>{result.time}</span>
-
-        <strong>
-          {result.level === "CRITICAL"
-            ? "🔴"
-            : result.level === "HIGH"
-            ? "🟠"
-            : result.level === "MODERATE"
-            ? "🟡"
-            : "🟢"}
-        </strong>
-
-        <small>
-          {result.level}
-        </small>
-
-        <div className="forecast-details">
-
-          <span>
-            🌧️ {nowcastData[index].rainfall.toFixed(1)} mm/hr
-          </span>
-
-          <span>
-            🚰 {nowcastData[index].drainage}%
-            drainage
-          </span>
-
-        </div>
-
-      </div>
-
-    ))}
-
-  </div>
-
-
-  
-
-  <div className="nowcast-info">
-
-    <span>🌧️ Rainfall Trend</span>
-    <strong>Increasing ↗</strong>
-
-    <span>🚰 Drainage Stress</span>
-    <strong>Increasing ↗</strong>
-
-  </div>
-  <div className="rainfall-chart">
-
-    <h3>🌧️ Rainfall Forecast Trend</h3>
-
-    <p>Expected rainfall intensity over the next 3 hours</p>
-
-    <ResponsiveContainer width="100%" height={260}>
-      <LineChart data={nowcastData}>
-
-        <CartesianGrid strokeDasharray="3 3" />
-
-        <XAxis dataKey="time" />
-
-        <YAxis />
-
-        <Tooltip />
-
-        <Line
-          type="monotone"
-          dataKey="rainfall"
-          stroke="#1677c8"
-          strokeWidth={3}
-          dot={{ r: 5 }}
-        />
-
-      </LineChart>
-    </ResponsiveContainer>
-
-  </div>
-</div>
-
-    </div>
-      <MapContainer
-        center={chennaiPosition}
-        zoom={12}
-        style={{ height: "500px", width: "100%" }}
-      >
-
-        <TileLayer
-          attribution="&copy; OpenStreetMap contributors"
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-{/* DEMO FLOOD RISK ZONES */}
-
-<Circle
-  center={[13.1067, 80.2871]}
-  radius={1800}
-  pathOptions={{
-    color: "#f97316",
-    fillColor: "#f97316",
-    fillOpacity: 0.25,
-  }}
->
-  <Popup>
-    <strong>🟠 HIGH RISK ZONE</strong>
-    <br />
-    North Chennai
-    <br />
-    Rainfall: 52 mm/hr
-    <br />
-    Drainage Stress: 68%
-    <br />
-    <small>Demo risk zone</small>
-  </Popup>
-</Circle>
-
-<Circle
-  center={[13.0569, 80.2425]}
-  radius={1500}
-  pathOptions={{
-    color: "#eab308",
-    fillColor: "#eab308",
-    fillOpacity: 0.25,
-  }}
->
-  <Popup>
-    <strong>🟡 MODERATE RISK ZONE</strong>
-    <br />
-    Central Chennai
-    <br />
-    Rainfall: 41 mm/hr
-    <br />
-    Drainage Stress: 82%
-    <br />
-    <small>Demo risk zone</small>
-  </Popup>
-</Circle>
-
-<Circle
-  center={[12.9846, 80.2209]}
-  radius={1700}
-  pathOptions={{
-    color: "#ef4444",
-    fillColor: "#ef4444",
-    fillOpacity: 0.25,
-  }}
->
-  <Popup>
-    <strong>🔴 CRITICAL RISK ZONE</strong>
-    <br />
-    South Chennai
-    <br />
-    Rainfall: 63 mm/hr
-    <br />
-    Drainage Stress: 91%
-    <br />
-    <small>Demo risk zone</small>
-  </Popup>
-</Circle>
-        {/* Rainfall monitoring points */}
-        {rainfallPoints.map((point) => (
-          <Marker
-            key={point.id}
-            position={point.position}
-            icon={rainfallIcon}
-          >
-            <Popup>
-              <strong>🌧️ Rainfall Monitoring</strong>
-              <br />
-              {point.name}
-              <br />
-              <br />
-
-              <strong>Rainfall:</strong>{" "}
-              {point.rainfall} mm/hr
-
-              <br />
-
-              <small>Demo value</small>
-            </Popup>
-          </Marker>
-        ))}
-{/* Flood risk zones */}
-{drainagePoints.map((point) => {
-  const risk = calculateFloodRisk(
-    point.rainfall,
-    point.utilization
-  );
 
   return (
-    <Circle
-      key={`risk-${point.id}`}
-      center={point.position}
-      radius={700}
-      pathOptions={{
-        color: getRiskColor(risk.level),
-        fillColor: getRiskColor(risk.level),
-        fillOpacity: 0.25,
-        weight: 2,
-      }}
-    >
-      <Popup>
-        <strong>⚠️ Flood Risk Zone</strong>
-        <br />
-        {point.name}
-        <br />
-        <br />
+    <div className="map-wrapper">
 
-        <strong>Rainfall:</strong>{" "}
-        {point.rainfall} mm/hr
-        <br />
+      {/* =================================================
+          CURRENT STATUS
+      ================================================= */}
 
-        <strong>Drainage Utilization:</strong>{" "}
-        {point.utilization}%
-        <br />
+      <div className="live-status-panel">
 
-        <strong>Risk:</strong>{" "}
-        {risk.level}
-        <br />
+        <div className="live-status-left">
 
-        <strong>Score:</strong>{" "}
-        {risk.score}/100
-      </Popup>
-    </Circle>
-  );
-})}
-        {/* Drainage monitoring points */}
-        {drainagePoints.map((point) => {
-          const risk = calculateFloodRisk(
-            point.rainfall,
-            point.utilization
-          );
-
-          return (
-            <Marker
-              key={point.id}
-              position={point.position}
-              icon={drainageIcon}
-            >
-              <Popup>
-                <strong>🚰 Drainage Monitoring</strong>
-                <br />
-                {point.name}
-                <br />
-                <br />
-
-                <strong>Rainfall:</strong>{" "}
-{point.rainfall} mm/hr
-                <br />
-<strong>Utilization:</strong>{" "}
-{point.utilization}%
-<br />
-
-<strong>Remaining Capacity:</strong>{" "}
-{100 - point.utilization}%
-<br />
-{point.utilization >= 90 ? (
-  <>
-    <strong style={{ color: "#dc2626" }}>
-      ⚠️ Overflow Warning
-    </strong>
-    <br />
-  </>
-) : null}
-
-<strong>Flood Risk:</strong>{" "}
-{risk.level}
-                <br />
-
-                <strong>Risk Score:</strong>{" "}
-                {risk.score}/100
-                <br />
-
-                <small>Demo calculation</small>
-              </Popup>
-            </Marker>
-          );
-        })}
-
-        {/* Map legend */}
-        <div className="map-legend">
-
-          <div className="legend-title">
-            Flood Risk
+          <div className="live-status-icon">
+            <CloudRain size={22} />
           </div>
 
-          <div className="legend-item">
-            <span className="legend-color low"></span>
-            Low
-          </div>
+          <div>
+            <span>{t("map.currentRainfall")}</span>
 
-          <div className="legend-item">
-            <span className="legend-color moderate"></span>
-            Moderate
-          </div>
-
-          <div className="legend-item">
-            <span className="legend-color high"></span>
-            High
-          </div>
-
-          <div className="legend-item">
-            <span className="legend-color critical"></span>
-            Critical
-          </div>
-
-          <div className="legend-item">
-            <span className="legend-color nodata"></span>
-            No Data
-          </div>
-
-          <div className="legend-item">
-            🌧️ Rainfall Point
-          </div>
-
-          <div className="legend-item">
-            🚰 Drainage Point
-          </div>
-
-          <div className="legend-demo">
-            Demo Risk Layer
+            <strong>
+              {rainfall} {t("common.unitMmHr")}
+            </strong>
           </div>
 
         </div>
 
-      </MapContainer>
+
+        <div className="live-status-item">
+
+          <span>{t("common.floodRisk")}</span>
+
+          <strong
+            className={`status-${overallRisk.toLowerCase()}`}
+          >
+            {tRisk(overallRisk)}
+          </strong>
+
+        </div>
+
+
+        <div className="live-status-item">
+
+          <span>{t("map.peakDrainage")}</span>
+
+          <strong>
+            {maximumUtilization}%
+          </strong>
+
+        </div>
+
+
+        <div className="simulation-indicator">
+          ● {t("map.simulationTag")}
+        </div>
+
+      </div>
+
+
+      {/* =================================================
+          RISK DISTRIBUTION
+      ================================================= */}
+
+      <div className="risk-summary">
+
+        <div className="risk-summary-header">
+
+          <div>
+            <h2>{t("map.riskDistribution")}</h2>
+
+            <p>
+              {t("map.riskDistributionSub")}
+            </p>
+          </div>
+
+          <div className="overall-risk-chip">
+            Overall: {tRisk(overallRisk)}
+          </div>
+
+        </div>
+
+
+        <div className="risk-grid">
+
+          <div className="risk-card risk-low">
+            <span>🟢 {tRisk("LOW")}</span>
+            <strong>{riskCounts.LOW}</strong>
+            <small>{t("common.locations")}</small>
+          </div>
+
+          <div className="risk-card risk-moderate">
+            <span>🟡 {tRisk("MODERATE")}</span>
+            <strong>{riskCounts.MODERATE}</strong>
+            <small>{t("common.locations")}</small>
+          </div>
+
+          <div className="risk-card risk-high">
+            <span>🟠 {tRisk("HIGH")}</span>
+            <strong>{riskCounts.HIGH}</strong>
+            <small>{t("common.locations")}</small>
+          </div>
+
+          <div className="risk-card risk-critical">
+            <span>🔴 {tRisk("CRITICAL")}</span>
+            <strong>{riskCounts.CRITICAL}</strong>
+            <small>{t("common.locations")}</small>
+          </div>
+
+        </div>
+
+
+        <div className="monitoring-stats">
+
+          <div>
+            <span>{t("map.currentRainfall")}</span>
+
+            <strong>
+              {rainfall} {t("common.unitMmHr")}
+            </strong>
+          </div>
+
+          <div>
+            <span>{t("map.maxUtilization")}</span>
+
+            <strong>
+              {maximumUtilization}%
+            </strong>
+          </div>
+
+          <div>
+            <span>{t("map.monitoringPoints")}</span>
+
+            <strong>
+              50
+            </strong>
+          </div>
+
+        </div>
+
+
+        <div className="pipe-summary">
+
+          <span className="small-pipe">
+            {tPipe("Small")}:{" "}
+            {
+              processedPoints.filter(
+                (p) =>
+                  p.pipeSize === "Small"
+              ).length
+            }
+          </span>
+
+          <span className="medium-pipe">
+            {tPipe("Medium")}:{" "}
+            {
+              processedPoints.filter(
+                (p) =>
+                  p.pipeSize === "Medium"
+              ).length
+            }
+          </span>
+
+          <span className="large-pipe">
+            {tPipe("Large")}:{" "}
+            {
+              processedPoints.filter(
+                (p) =>
+                  p.pipeSize === "Large"
+              ).length
+            }
+          </span>
+
+        </div>
+
+
+        <div className="pipe-capacity-legend">
+
+          <div className="pipe-capacity-item small">
+            <span className="pipe-bar" aria-hidden="true"></span>
+            <strong>{tPipe("Small")}</strong>
+            <small>{t("pipes.smallNote")}</small>
+          </div>
+
+          <div className="pipe-capacity-item medium">
+            <span className="pipe-bar" aria-hidden="true"></span>
+            <strong>{tPipe("Medium")}</strong>
+            <small>{t("pipes.mediumNote")}</small>
+          </div>
+
+          <div className="pipe-capacity-item large">
+            <span className="pipe-bar" aria-hidden="true"></span>
+            <strong>{tPipe("Large")}</strong>
+            <small>{t("pipes.largeNote")}</small>
+          </div>
+
+          <p className="pipe-capacity-note">
+            {t("pipes.explain")}
+          </p>
+
+        </div>
+
+
+        <div className="demo-warning">
+
+          ⚠ {t("map.demoWarning")}
+
+        </div>
+
+      </div>
+
+
+      {/* =================================================
+          NOWCAST
+      ================================================= */}
+
+      <div className="nowcast-panel">
+
+        <div className="section-heading">
+
+          <div>
+            <h3>
+              {t("map.nowcastTitle")}
+            </h3>
+
+            <p>
+              {t("map.nowcastSub")}
+            </p>
+          </div>
+
+          <span>
+            {t("common.next3Hours")}
+          </span>
+
+        </div>
+
+
+        <div className="nowcast-grid">
+
+          {nowcastResults.map(
+            (result, index) => {
+
+              const level =
+                result.level.toLowerCase();
+
+              return (
+                <div
+                  key={nowcastData[index].time}
+                  className={`nowcast-card ${level}`}
+                >
+
+                  <span>
+                    {t(`nowcast.${nowcastData[index].key}`)}
+                  </span>
+
+                  <strong>
+                    {tRisk(result.level)}
+                  </strong>
+
+                  <small>
+                    {t("popup.score")} {result.score}/100
+                  </small>
+
+                  <div className="forecast-details">
+
+                    <span>
+                      🌧 {nowcastData[index].rainfall} {t("common.unitMmHr")}
+                    </span>
+
+                    <span>
+                      🚰 {nowcastData[index].drainage}%
+                    </span>
+
+                  </div>
+
+                </div>
+              );
+            }
+          )}
+
+        </div>
+
+
+        {/* TREND */}
+        <div className="nowcast-info">
+
+          <span>
+            🌧 {t("map.rainfallTrend")}
+          </span>
+
+          <strong>
+            {t("map.increasing")} ↗
+          </strong>
+
+          <span>
+            🚰 {t("map.drainageStress")}
+          </span>
+
+          <strong>
+            {t("map.increasing")} ↗
+          </strong>
+
+        </div>
+
+
+        {/* CHART */}
+        <div className="rainfall-chart">
+
+          <h3>
+            🌧 {t("map.chartTitle")}
+          </h3>
+
+          <p>
+            {t("map.chartSub")}
+          </p>
+
+          <ResponsiveContainer
+            width="100%"
+            height={270}
+          >
+
+            <LineChart
+              data={nowcastData}
+            >
+
+              <CartesianGrid
+                strokeDasharray="3 3"
+              />
+
+              <XAxis
+                dataKey="time"
+              />
+
+              <YAxis
+                unit=" mm/hr"
+              />
+
+              <Tooltip />
+
+              <Line
+                type="monotone"
+                dataKey="rainfall"
+                stroke="#0284c7"
+                strokeWidth={3}
+                dot={{ r: 5 }}
+              />
+
+            </LineChart>
+
+          </ResponsiveContainer>
+
+        </div>
+
+      </div>
+
+
+      {/* =================================================
+          RAINFALL CONTROL
+      ================================================= */}
+
+      <div className="rainfall-control">
+
+        <div className="rainfall-control-header">
+
+          <div className="rainfall-control-title">
+
+            <div className="control-icon">
+              <CloudRain size={22} />
+            </div>
+
+            <div>
+              <h3>
+                {t("map.controlTitle")}
+              </h3>
+
+              <p>
+                {t("map.controlSub")}
+              </p>
+            </div>
+
+          </div>
+
+
+          <div className="rainfall-value">
+
+            <input
+              type="number"
+              aria-label={t("map.rainfallInputLabel")}
+              min="0"
+              max="150"
+              value={rainfall}
+              onChange={(e) =>
+                setRainfall(
+                  Math.max(
+                    0,
+                    Math.min(
+                      150,
+                      Number(e.target.value)
+                    )
+                  )
+                )
+              }
+            />
+
+            <strong>
+              {t("common.unitMmHr")}
+            </strong>
+
+            <button
+              onClick={resetRainfall}
+              title={t("map.resetTitle")}
+              aria-label={t("map.resetTitle")}
+            >
+              <RotateCcw size={15} />
+              {t("map.reset")}
+            </button>
+
+          </div>
+
+        </div>
+
+
+        <input
+          className="rainfall-slider"
+          type="range"
+          aria-label={t("map.rainfallSliderLabel")}
+          min="0"
+          max="150"
+          value={rainfall}
+          onChange={(e) =>
+            setRainfall(
+              Number(e.target.value)
+            )
+          }
+        />
+
+
+        <div className="slider-labels">
+          <span>0 mm/hr</span>
+          <span>50</span>
+          <span>100</span>
+          <span>150 mm/hr</span>
+        </div>
+
+
+        <div className="risk-scale">
+
+          <span className="scale-low">
+            🟢 {tRisk("LOW")}
+          </span>
+
+          <span className="scale-moderate">
+            🟡 {tRisk("MODERATE")}
+          </span>
+
+          <span className="scale-high">
+            🟠 {tRisk("HIGH")}
+          </span>
+
+          <span className="scale-critical">
+            🔴 {tRisk("CRITICAL")}
+          </span>
+
+        </div>
+
+      </div>
+
+
+      {/* =================================================
+          MAP
+      ================================================= */}
+
+      <div className="map-container-card">
+
+        <div className="map-header">
+
+          <div>
+            <div className="map-title-row">
+
+              <div className="map-title-icon">
+                <Activity size={19} />
+              </div>
+
+              <div>
+                <h2>
+                  {t("map.mapTitle")}
+                </h2>
+
+                <p>
+                  {t("map.mapSub")}
+                </p>
+              </div>
+
+            </div>
+          </div>
+
+
+          <div className="map-live-badge">
+            ● {t("map.simulationActive")}
+          </div>
+
+        </div>
+
+
+        <div className="map-canvas">
+
+          <MapContainer
+            center={velacheryPosition}
+            zoom={14}
+            scrollWheelZoom={true}
+            style={{
+              height: "620px",
+              width: "100%",
+            }}
+          >
+
+            <TileLayer
+              attribution="&copy; OpenStreetMap contributors"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+
+
+            {/* VELACHERY BOUNDARY */}
+
+            <Polygon
+              positions={velacheryBoundary}
+              pathOptions={{
+                color: "#0284c7",
+                weight: 3,
+                dashArray: "8 6",
+                fillColor: "#0284c7",
+                fillOpacity: 0.04,
+              }}
+            />
+
+
+            {/* RAINFALL POINTS */}
+
+            {rainfallPoints.map(
+              (point) => (
+
+                <Marker
+                  key={point.id}
+                  position={point.position}
+                >
+
+                  <Popup>
+
+                    <strong>
+                      🌧 {t("map.rainfallPoint")}
+                    </strong>
+
+                    <br />
+
+                    {point.name}
+
+                    <br />
+                    <br />
+
+                    <strong>
+                      {t("map.simulationRainfall")}
+                    </strong>{" "}
+                    {rainfall} {t("common.unitMmHr")}
+
+                    <br />
+
+                    <small>
+                      {t("map.projectData")}
+                    </small>
+
+                  </Popup>
+
+                </Marker>
+
+              )
+            )}
+
+
+            {/* DYNAMIC RISK AREAS */}
+
+            {processedPoints.map(
+              (point) => {
+
+                const color =
+                  getRiskColor(
+                    point.risk.level
+                  );
+
+                const radius =
+                  point.risk.level ===
+                  "CRITICAL"
+                    ? 150
+                    : point.risk.level ===
+                      "HIGH"
+                    ? 120
+                    : point.risk.level ===
+                      "MODERATE"
+                    ? 95
+                    : 70;
+
+                return (
+                  <div key={point.id}>
+
+                    <Circle
+                      center={point.position}
+                      radius={radius}
+                      pathOptions={{
+                        color,
+                        fillColor: color,
+                        fillOpacity: 0.12,
+                        weight: 1,
+                      }}
+                    />
+
+                    <CircleMarker
+                      center={point.position}
+                      radius={6}
+                      pathOptions={{
+                        color: "#ffffff",
+                        weight: 2,
+                        fillColor: color,
+                        fillOpacity: 1,
+                      }}
+                    >
+
+                      <Popup>
+
+                        <div className="map-popup">
+
+                          <h3>
+                            {point.risk.level ===
+                            "CRITICAL"
+                              ? "🔴"
+                              : point.risk.level ===
+                                "HIGH"
+                              ? "🟠"
+                              : point.risk.level ===
+                                "MODERATE"
+                              ? "🟡"
+                              : "🟢"}{" "}
+                            {t("map.drainageMonitoring")}
+                          </h3>
+
+                          <strong>
+                            {point.id}
+                          </strong>
+
+                          <br />
+
+                          {point.name}
+
+                          <hr />
+
+                          <div>
+                            <strong>
+                              {t("popup.road")}
+                            </strong>{" "}
+                            {point.road}
+                          </div>
+
+                          <div>
+                            <strong>
+                              {t("popup.pipe")}
+                            </strong>{" "}
+                            {tPipe(point.pipeSize)}
+                          </div>
+
+                          <div>
+                            <strong>
+                              {t("popup.capacity")}
+                            </strong>{" "}
+                            {point.capacity}%
+                          </div>
+
+                          <div>
+                            <strong>
+                              {t("popup.rainfall")}
+                            </strong>{" "}
+                            {rainfall} {t("common.unitMmHr")}
+                          </div>
+
+                          <div>
+                            <strong>
+                              {t("popup.utilization")}
+                            </strong>{" "}
+                            {point.adjustedUtilization}%
+                          </div>
+
+                          <div>
+                            <strong>
+                              {t("popup.remaining")}
+                            </strong>{" "}
+                            {100 -
+                              point.adjustedUtilization}
+                            %
+                          </div>
+
+                          <div>
+                            <strong>
+                              {t("popup.risk")}
+                            </strong>{" "}
+                            {tRisk(point.risk.level)}
+                          </div>
+
+                          <div>
+                            <strong>
+                              {t("popup.score")}
+                            </strong>{" "}
+                            {point.risk.score}/100
+                          </div>
+
+                          {point.adjustedUtilization >=
+                            90 && (
+                            <p
+                              style={{
+                                color:
+                                  "#dc2626",
+                                fontWeight:
+                                  700,
+                              }}
+                            >
+                              ⚠ {t("map.overflowWarning")}
+                            </p>
+                          )}
+
+                        </div>
+
+                      </Popup>
+
+                    </CircleMarker>
+
+                  </div>
+                );
+              }
+            )}
+
+
+            {/* LEGEND */}
+
+            <div className="map-legend">
+
+              <div className="legend-title">
+                {t("common.floodRisk")}
+              </div>
+
+              <div className="legend-item">
+                <span className="legend-color low"></span>
+                {tRisk("LOW")}
+              </div>
+
+              <div className="legend-item">
+                <span className="legend-color moderate"></span>
+                {tRisk("MODERATE")}
+              </div>
+
+              <div className="legend-item">
+                <span className="legend-color high"></span>
+                {tRisk("HIGH")}
+              </div>
+
+              <div className="legend-item">
+                <span className="legend-color critical"></span>
+                {tRisk("CRITICAL")}
+              </div>
+
+              <hr />
+
+              <div className="legend-title">
+                {t("map.legendPipe")}
+              </div>
+
+              <div className="legend-item">
+                <span className="legend-pipe small"></span>
+                {tPipe("Small")} — {t("pipes.smallNote")}
+              </div>
+
+              <div className="legend-item">
+                <span className="legend-pipe medium"></span>
+                {tPipe("Medium")} — {t("pipes.mediumNote")}
+              </div>
+
+              <div className="legend-item">
+                <span className="legend-pipe large"></span>
+                {tPipe("Large")} — {t("pipes.largeNote")}
+              </div>
+
+              <hr />
+
+              <div className="legend-item">
+                🔵 {t("map.boundary")}
+              </div>
+
+              <div className="legend-item">
+                🌧 {t("map.rainfallPointShort")}
+              </div>
+
+              <div className="legend-item">
+                ● {t("map.drainagePointShort")}
+              </div>
+
+              <div className="legend-demo">
+                {t("map.legendDemo")}
+              </div>
+
+            </div>
+
+          </MapContainer>
+
+
+          {/* MAP OVERLAY */}
+
+          <div className="map-overlay">
+
+            <div className="overlay-title">
+              {t("map.currentFloodStatus")}
+            </div>
+
+            <div
+              className={`overlay-risk ${overallRisk.toLowerCase()}`}
+            >
+              {tRisk(overallRisk)}
+            </div>
+
+            <div className="overlay-details">
+
+              <span>
+                🌧 {rainfall} {t("common.unitMmHr")}
+              </span>
+
+              <span>
+                🚰 {maximumUtilization}% drainage
+              </span>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      {/* =================================================
+          WHY RISK IS CHANGING
+      ================================================= */}
+
+      <div className="why-risk-section">
+
+        <div className="section-heading">
+
+          <div>
+            <h2>
+              {t("map.whyTitle")}
+            </h2>
+
+            <p>
+              {t("map.whySub")}
+            </p>
+          </div>
+
+        </div>
+
+
+        <div className="risk-factor-grid">
+
+          <div className="risk-factor">
+
+            <div className="factor-icon rainfall">
+              <CloudRain size={21} />
+            </div>
+
+            <div className="factor-content">
+
+              <div>
+                <span>
+                  {t("map.factorRainfall")}
+                </span>
+
+                <strong>
+                  {rainfall} {t("common.unitMmHr")}
+                </strong>
+              </div>
+
+              <div className="factor-bar">
+                <div
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (rainfall / 120) *
+                        100
+                    )}%`,
+                  }}
+                ></div>
+              </div>
+
+              <div className="factor-description">
+                {t("map.factorRainfallText")}
+              </div>
+
+            </div>
+
+          </div>
+
+
+          <div className="risk-factor">
+
+            <div className="factor-icon drainage">
+              <Waves size={21} />
+            </div>
+
+            <div className="factor-content">
+
+              <div>
+                <span>
+                  {t("map.factorDrainage")}
+                </span>
+
+                <strong>
+                  {maximumUtilization}%
+                </strong>
+              </div>
+
+              <div className="factor-bar">
+                <div
+                  style={{
+                    width: `${maximumUtilization}%`,
+                  }}
+                ></div>
+              </div>
+
+              <div className="factor-description">
+                {t("map.factorDrainageText")}
+              </div>
+
+            </div>
+
+          </div>
+
+
+          <div className="risk-factor">
+
+            <div className="factor-icon risk">
+              <AlertTriangle size={21} />
+            </div>
+
+            <div className="factor-content">
+
+              <div>
+                <span>
+                  {t("map.criticalLocations")}
+                </span>
+
+                <strong>
+                  {riskCounts.CRITICAL}
+                </strong>
+              </div>
+
+              <div className="factor-description">
+                {t("map.criticalLocationsText")}
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      {/* =================================================
+          TOP RISK LOCATIONS
+      ================================================= */}
+
+      <div className="top-risk-section">
+
+        <div className="section-heading">
+
+          <div>
+            <h2>
+              {t("map.topRiskTitle")}
+            </h2>
+
+            <p>
+              {t("map.topRiskSub")}
+            </p>
+          </div>
+
+        </div>
+
+
+        <div className="top-risk-list">
+
+          {topRiskLocations.map(
+            (point, index) => (
+
+              <div
+                className="top-risk-row"
+                key={point.id}
+              >
+
+                <div className="risk-rank">
+                  #{index + 1}
+                </div>
+
+                <div className="top-risk-name">
+
+                  <strong>
+                    {point.id}
+                  </strong>
+
+                  <span>
+                    {point.road}
+                  </span>
+
+                </div>
+
+                <div className="top-risk-pipe">
+                  {tPipe(point.pipeSize)}
+                </div>
+
+                <div className="top-risk-utilization">
+
+                  <strong>
+                    {point.adjustedUtilization}%
+                  </strong>
+
+                  <span>
+                    {t("map.utilization")}
+                  </span>
+
+                </div>
+
+                <div
+                  className={`risk-badge ${point.risk.level.toLowerCase()}`}
+                >
+                  {tRisk(point.risk.level)}
+                </div>
+
+              </div>
+
+            )
+          )}
+
+        </div>
+
+      </div>
 
     </div>
   );
