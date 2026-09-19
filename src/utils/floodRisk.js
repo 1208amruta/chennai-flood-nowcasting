@@ -1,27 +1,42 @@
 export function calculateFloodRisk(rainfall, drainageUtilization) {
-  if (rainfall >= 70 && drainageUtilization >= 85) {
+  const rainfallScore = Math.min(
+    100,
+    (rainfall / 120) * 100
+  );
+
+  const drainageScore = Math.min(
+    100,
+    drainageUtilization
+  );
+
+  const score = Math.round(
+    rainfallScore * 0.45 +
+    drainageScore * 0.55
+  );
+
+  if (score >= 75) {
     return {
       level: "CRITICAL",
-      score: 90,
+      score,
     };
   }
 
-  if (rainfall >= 50 && drainageUtilization >= 70) {
+  if (score >= 55) {
     return {
       level: "HIGH",
-      score: 75,
+      score,
     };
   }
 
-  if (rainfall >= 30 && drainageUtilization >= 50) {
+  if (score >= 35) {
     return {
       level: "MODERATE",
-      score: 50,
+      score,
     };
   }
 
   return {
     level: "LOW",
-    score: 25,
+    score,
   };
 }

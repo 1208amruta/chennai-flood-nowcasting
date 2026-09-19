@@ -1,255 +1,241 @@
 import {
-  AlertTriangle,
   MapPin,
   CloudRain,
   Waves,
-  CheckCircle,
+  AlertTriangle,
   Clock,
+  ShieldCheck,
+  Activity,
+  Radio,
 } from "lucide-react";
 
+import { useLanguage } from "../i18n/LanguageContext";
+import { useSimulation } from "../context/SimulationContext";
+
+import SectionHeader from "../components/SectionHeader";
+import RiskBadge from "../components/RiskBadge";
+import DemoDisclaimer from "../components/DemoDisclaimer";
+
+const actionKey = {
+  CRITICAL: "authority.actionCritical",
+  HIGH: "authority.actionHigh",
+  MODERATE: "authority.actionModerate",
+  LOW: "authority.actionLow",
+};
+
+const riskDescriptionKey = {
+  LOW: "dashboard.riskDescLow",
+  MODERATE: "dashboard.riskDescModerate",
+  HIGH: "dashboard.riskDescHigh",
+  CRITICAL: "dashboard.riskDescCritical",
+};
+
 function AuthorityDashboard() {
-  const priorityZones = [
-    {
-      area: "South Chennai",
-      rainfall: 63,
-      drainage: 91,
-      risk: "CRITICAL",
-      action: "Inspect drainage and prepare response team",
-    },
-    {
-      area: "Central Chennai",
-      rainfall: 41,
-      drainage: 82,
-      risk: "MODERATE",
-      action: "Increase monitoring",
-    },
-    {
-      area: "North Chennai",
-      rainfall: 52,
-      drainage: 68,
-      risk: "HIGH",
-      action: "Monitor drainage capacity",
-    },
-  ];
+  const { t, tRisk, tPipe } = useLanguage();
+
+  const {
+    rainfall,
+    maximumUtilization,
+    overallRisk,
+    riskCounts,
+    processedPoints,
+    totalPoints,
+  } = useSimulation();
+
+  // Priority = highest simulated drainage stress.
+  const priorityPoints = [...processedPoints]
+    .sort((a, b) => b.adjustedUtilization - a.adjustedUtilization)
+    .slice(0, 8);
 
   return (
     <div className="authority-dashboard">
 
-      {/* Header */}
       <div className="authority-header">
-
         <div>
           <div className="authority-location">
-            <MapPin size={16} />
-            Chennai, Tamil Nadu
+            <MapPin size={16} aria-hidden="true" />
+            {t("common.location")}
           </div>
 
-          <h1>Authority Dashboard</h1>
+          <h1>{t("authority.title")}</h1>
 
-          <p>
-            Flood monitoring, risk assessment and emergency response
-          </p>
+          <p>{t("authority.subtitle")}</p>
         </div>
 
         <div className="authority-status">
-          <CheckCircle size={16} />
-          System Monitoring
+          <Radio size={15} aria-hidden="true" />
+          {t("authority.statusOnline")}
         </div>
-
       </div>
 
-      {/* Alert Banner */}
-      <div className="authority-alert">
-
-        <div className="authority-alert-icon">
-          <AlertTriangle size={28} />
+      {/* CURRENT STATUS BANNER */}
+      <div
+        className={`authority-alert risk-level-${overallRisk.toLowerCase()}`}
+        aria-live="polite"
+      >
+        <div className="authority-alert-icon" aria-hidden="true">
+          <AlertTriangle size={26} />
         </div>
 
         <div>
-          <span>PRIORITY ALERT</span>
+          <span>{t("authority.priorityAlert")}</span>
 
-          <h2>Critical flood risk detected in South Chennai</h2>
+          <h2>
+            {t("map.currentFloodStatus")}: {tRisk(overallRisk)}
+          </h2>
 
-          <p>
-            High rainfall combined with elevated drainage stress
-            requires immediate attention.
-          </p>
+          <p>{t(riskDescriptionKey[overallRisk])}</p>
         </div>
 
         <div className="alert-updated">
-          <Clock size={15} />
-          Updated now
+          <Clock size={15} aria-hidden="true" />
+          {t("common.updatedNow")}
         </div>
-
       </div>
 
-      {/* Statistics */}
+      {/* STATS */}
       <div className="authority-stats">
-
         <div className="authority-stat-card">
-          <div className="authority-stat-icon">
-            <CloudRain size={23} />
+          <div className="authority-stat-icon" aria-hidden="true">
+            <CloudRain size={20} />
           </div>
 
           <div>
-            <span>Average Rainfall</span>
-            <strong>52.0 mm/hr</strong>
-            <small>Current monitoring</small>
+            <span>{t("authority.statRainfall")}</span>
+            <strong>
+              {rainfall} {t("common.unitMmHr")}
+            </strong>
+            <small>{t("authority.statRainfallNote")}</small>
           </div>
         </div>
 
         <div className="authority-stat-card">
-          <div className="authority-stat-icon">
-            <Waves size={23} />
+          <div className="authority-stat-icon" aria-hidden="true">
+            <Waves size={20} />
           </div>
 
           <div>
-            <span>Highest Drainage Stress</span>
-            <strong>91%</strong>
-            <small>South Chennai</small>
+            <span>{t("authority.statStress")}</span>
+            <strong>{maximumUtilization}%</strong>
+            <small>{t("authority.statStressNote")}</small>
           </div>
         </div>
 
         <div className="authority-stat-card">
-          <div className="authority-stat-icon">
-            <AlertTriangle size={23} />
+          <div className="authority-stat-icon" aria-hidden="true">
+            <AlertTriangle size={20} />
           </div>
 
           <div>
-            <span>Critical Zones</span>
-            <strong>1</strong>
-            <small>Immediate attention</small>
+            <span>{t("authority.statCritical")}</span>
+            <strong>{riskCounts.CRITICAL}</strong>
+            <small>{t("authority.statCriticalNote")}</small>
           </div>
         </div>
 
         <div className="authority-stat-card">
-          <div className="authority-stat-icon">
-            <Clock size={23} />
+          <div className="authority-stat-icon" aria-hidden="true">
+            <Clock size={20} />
           </div>
 
           <div>
-            <span>Forecast Window</span>
-            <strong>0–3 Hours</strong>
-            <small>Short-term nowcast</small>
+            <span>{t("authority.statWindow")}</span>
+            <strong>{t("common.window03")}</strong>
+            <small>{t("authority.statWindowNote")}</small>
           </div>
         </div>
-
       </div>
 
-      {/* Priority Zones */}
-      <div className="priority-section">
-
-        <div className="priority-heading">
-          <div>
-            <h2>Priority Monitoring Zones</h2>
-            <p>
-              Areas requiring monitoring or response based on the demo model
-            </p>
+      {/* RISK DISTRIBUTION STRIP */}
+      <div className="authority-distribution">
+        {["LOW", "MODERATE", "HIGH", "CRITICAL"].map((level) => (
+          <div
+            key={level}
+            className={`distribution-item risk-level-${level.toLowerCase()}`}
+          >
+            <span className="distribution-dot" aria-hidden="true" />
+            <span>{tRisk(level)}</span>
+            <strong>{riskCounts[level]}</strong>
           </div>
+        ))}
 
-          <span>3 monitored zones</span>
+        <div className="distribution-total">
+          <Activity size={15} aria-hidden="true" />
+          {totalPoints} {t("authority.zonesCount")}
         </div>
+      </div>
+
+      {/* PRIORITY TABLE */}
+      <div className="priority-section">
+        <SectionHeader
+          title={t("authority.priorityTitle")}
+          subtitle={t("authority.prioritySub")}
+          meta={`${priorityPoints.length} / ${totalPoints}`}
+        />
 
         <div className="priority-table">
-
           <div className="table-header">
-            <span>AREA</span>
-            <span>RAINFALL</span>
-            <span>DRAINAGE</span>
-            <span>RISK</span>
-            <span>RECOMMENDED ACTION</span>
+            <span>{t("authority.colId")}</span>
+            <span>{t("authority.colArea")}</span>
+            <span>{t("authority.colPipe")}</span>
+            <span>{t("authority.colDrainage")}</span>
+            <span>{t("authority.colRisk")}</span>
+            <span>{t("authority.colAction")}</span>
           </div>
 
-          {priorityZones.map((zone) => (
+          {priorityPoints.map((point) => (
+            <div className="table-row" key={point.id}>
+              <strong>{point.id}</strong>
 
-            <div className="table-row" key={zone.area}>
+              <span>{point.road}</span>
 
-              <strong>
-                <MapPin size={15} />
-                {zone.area}
-              </strong>
+              <span>{tPipe(point.pipeSize)}</span>
 
-              <span>
-                🌧️ {zone.rainfall} mm/hr
-              </span>
+              <span>{point.adjustedUtilization}%</span>
 
-              <span>
-                🚰 {zone.drainage}%
-              </span>
+              <RiskBadge level={point.risk.level} />
 
-              <span
-                className={`risk-badge ${zone.risk.toLowerCase()}`}
-              >
-                {zone.risk}
-              </span>
-
-              <span>
-                {zone.action}
-              </span>
-
+              <span>{t(actionKey[point.risk.level])}</span>
             </div>
-
           ))}
-
         </div>
-
       </div>
 
-      {/* Response Actions */}
+      {/* RESPONSE INFORMATION */}
       <div className="response-section">
-
-        <h2>Recommended Response Actions</h2>
+        <SectionHeader
+          title={t("authority.responseTitle")}
+          subtitle={t("authority.responseSub")}
+        />
 
         <div className="response-grid">
-
           <div className="response-card critical">
-            <AlertTriangle size={22} />
-
+            <AlertTriangle size={20} aria-hidden="true" />
             <div>
-              <strong>South Chennai</strong>
-
-              <p>
-                Inspect drainage infrastructure and prepare
-                emergency response resources.
-              </p>
+              <strong>{t("authority.response1")}</strong>
+              <p>{t("authority.response1Text")}</p>
             </div>
           </div>
 
           <div className="response-card warning">
-            <Waves size={22} />
-
+            <Waves size={20} aria-hidden="true" />
             <div>
-              <strong>Drainage Monitoring</strong>
-
-              <p>
-                Closely monitor locations approaching drainage
-                capacity.
-              </p>
+              <strong>{t("authority.response2")}</strong>
+              <p>{t("authority.response2Text")}</p>
             </div>
           </div>
 
           <div className="response-card normal">
-            <CheckCircle size={22} />
-
+            <ShieldCheck size={20} aria-hidden="true" />
             <div>
-              <strong>Continuous Monitoring</strong>
-
-              <p>
-                Continue rainfall and drainage monitoring for
-                the next 3 hours.
-              </p>
+              <strong>{t("authority.response3")}</strong>
+              <p>{t("authority.response3Text")}</p>
             </div>
           </div>
-
         </div>
-
       </div>
 
-      <div className="authority-demo-warning">
-        DEMO DATA — Prototype for SIH demonstration. Not an official
-        emergency management system.
-      </div>
-
+      <DemoDisclaimer className="authority-demo-warning" />
     </div>
   );
 }

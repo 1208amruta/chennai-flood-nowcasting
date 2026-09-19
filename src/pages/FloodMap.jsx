@@ -2,102 +2,81 @@ import {
   CloudRain,
   Waves,
   AlertTriangle,
-  Clock,
+  MapPin,
+  Activity,
 } from "lucide-react";
 
 import FloodMapComponent from "../components/FloodMapComponent";
+import StatusCard from "../components/StatusCard";
+import SectionHeader from "../components/SectionHeader";
+
+import { useLanguage } from "../i18n/LanguageContext";
+import { useSimulation } from "../context/SimulationContext";
 
 function FloodMap() {
+  const { t } = useLanguage();
+  const { totalPoints } = useSimulation();
+
   return (
-    <main className="dashboard">
+    <main className="dashboard flood-map-page">
+
+      {/* HEADER */}
       <div className="dashboard-header">
         <div>
           <div className="location-label">
-            📍 Chennai, Tamil Nadu
+            <MapPin size={16} aria-hidden="true" />
+            {t("common.location")}
           </div>
 
-          <h1>Live Flood Risk Map</h1>
+          <h1>{t("mapPage.title")}</h1>
 
-          <p>
-            Monitor rainfall, drainage conditions and predicted
-            flood-risk zones across Chennai.
-          </p>
+          <p>{t("mapPage.subtitle")}</p>
         </div>
 
-        <div className="demo-badge">
-          DEMO MONITORING MODE
-        </div>
+        <div className="demo-badge">{t("common.demoMonitoringMode")}</div>
       </div>
 
+      {/* QUICK INFO */}
       <section className="stats-grid">
+        <StatusCard
+          icon={<CloudRain size={22} />}
+          label={t("mapPage.statInput")}
+          value={t("common.rainfall")}
+          note={t("mapPage.statInputNote")}
+        />
 
-        <div className="stat-card">
-          <div className="stat-icon">
-            <CloudRain size={22} />
-          </div>
+        <StatusCard
+          icon={<AlertTriangle size={22} />}
+          label={t("mapPage.statLevels")}
+          value={t("mapPage.statLevelsValue")}
+          note={t("mapPage.statLevelsNote")}
+        />
 
-          <div>
-            <span>Rainfall Intensity</span>
-            <h2>52 mm/hr</h2>
-            <small>Demo observation</small>
-          </div>
-        </div>
+        <StatusCard
+          icon={<Waves size={22} />}
+          label={t("mapPage.statArea")}
+          value={t("mapPage.statAreaValue")}
+          note={t("mapPage.statAreaNote")}
+        />
 
-        <div className="stat-card">
-          <div className="stat-icon">
-            <AlertTriangle size={22} />
-          </div>
-
-          <div>
-            <span>Flood Risk</span>
-            <h2>HIGH</h2>
-            <small>Current risk level</small>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon">
-            <Waves size={22} />
-          </div>
-
-          <div>
-            <span>Drainage Utilization</span>
-            <h2>78%</h2>
-            <small>Demo value</small>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon">
-            <Clock size={22} />
-          </div>
-
-          <div>
-            <span>Next 60 Minutes</span>
-            <h2>CRITICAL</h2>
-            <small>Predicted risk</small>
-          </div>
-        </div>
-
+        <StatusCard
+          icon={<Activity size={22} />}
+          label={t("mapPage.statPoints")}
+          value={totalPoints}
+          note={t("mapPage.statPointsNote")}
+        />
       </section>
 
-      <section className="nowcast-section">
-
-        <div className="section-heading">
-          <div>
-            <h2>Chennai Flood Risk Map</h2>
-            <p>
-              Rainfall + drainage conditions + flood prediction
-            </p>
-          </div>
-
-          <span>Live Monitoring</span>
-        </div>
+      {/* MAIN MAP SYSTEM */}
+      <section className="nowcast-section map-main-section">
+        <SectionHeader
+          title={t("mapPage.sectionTitle")}
+          subtitle={t("mapPage.sectionSubtitle")}
+          meta={t("mapPage.interactive")}
+        />
 
         <FloodMapComponent />
-
       </section>
-
     </main>
   );
 }
